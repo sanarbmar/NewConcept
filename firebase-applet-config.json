@@ -1,12 +1,12 @@
 {
-  "projectId": "spatial-guide-zxjsq",
-  "appId": "1:916322923608:web:e9bee7dc82684ecc2c462d",
-  "apiKey": "AIzaSyDSFM8NYE-BEjWuLAiVkGepoQyDm0dGSmg",
-  "authDomain": "spatial-guide-zxjsq.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-barberanewconcep-97e86a4c-c881-4582-b5ae-fb224289e59b",
-  "storageBucket": "spatial-guide-zxjsq.firebasestorage.app",
-  "messagingSenderId": "916322923608",
+  "projectId": "newconcept24kbarberia",
+  "appId": "1:565409244834:web:2058dde14b63c12945d9fb",
+  "apiKey": "AIzaSyAOJQgmkHIWD5Fnv5t-H1lkHgV182z37Qc",
+  "authDomain": "newconcept24kbarberia.firebaseapp.com",
+  "firestoreDatabaseId": "",
+  "storageBucket": "newconcept24kbarberia.firebasestorage.app",
+  "messagingSenderId": "565409244834",
   "measurementId": "",
-  "oAuthClientId": "916322923608-f0kramvu85ee306djkgsrudsm7ot6ol8.apps.googleusercontent.com",
+  "oAuthClientId": "",
   "recaptchaSiteKey": ""
 }
