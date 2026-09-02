@@ -1,7 +1,7 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // Función de ayuda: verificar si el usuario es administrador autenticado según la colección admins
     function isAdmin() {
       return request.auth != null &&
@@ -109,7 +109,12 @@ service cloud.firestore {
               'fin': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_cancelada_id)).data.hora_fin,
               'tipo': 'cita'
             }]) &&
-            resource.data.ocupaciones.hasAll(request.resource.data.ocupaciones)
+            (request.resource.data.ocupaciones + [{
+              'id': request.resource.data.cita_cancelada_id,
+              'inicio': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_cancelada_id)).data.hora_inicio,
+              'fin': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_cancelada_id)).data.hora_fin,
+              'tipo': 'cita'
+            }]).hasAll(resource.data.ocupaciones)
           )
         )
       );
@@ -152,12 +157,12 @@ service cloud.firestore {
     // Colección: citas
     // El ID del documento es el propio token_gestion (de mínimo 16 caracteres alfanuméricos)
     match /citas/{token} {
-      
+
       // 1. Creación: El cliente puede crear su cita directamente con token_gestion igual al ID del documento
       allow create: if request.resource.data.keys().hasAll([
-        'cliente_nombre', 'cliente_telefono', 'barbero_id', 'servicio_id', 
+        'cliente_nombre', 'cliente_telefono', 'barbero_id', 'servicio_id',
         'fecha', 'hora_inicio', 'hora_fin', 'estado', 'token_gestion', 'consentimiento_datos'
-      ]) 
+      ])
       && request.resource.data.cliente_nombre is string
       && request.resource.data.cliente_nombre.size() >= 2
       && request.resource.data.cliente_telefono is string
@@ -170,7 +175,7 @@ service cloud.firestore {
       // 2. Lectura directa (get):
       // El admin puede leer cualquier cita. El cliente solo puede leer el documento exacto si conoce el token (ID del documento)
       allow get: if isAdmin() || (resource.data.token_gestion == token);
-      
+
       // 3. Listado de citas: Exclusivo para admin autenticado (ningún cliente no autenticado puede listar citas)
       allow list: if isAdmin();
 
@@ -186,7 +191,7 @@ service cloud.firestore {
       // 5. Eliminación: Solo admin
       allow delete: if isAdmin();
     }
-    
+
     // Regla de cierre
     match /{document=**} {
       allow read, write: if false;
