@@ -1,0 +1,195 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Función de ayuda: verificar si el usuario es administrador autenticado según la colección admins
+    function isAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.token.email)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.token.email)).data.activo == true;
+    }
+
+    // Colección: admins
+    // Un usuario autenticado solo puede leer (get) el documento cuyo ID coincide exactamente con su propio correo — nunca puede listar ni leer los documentos de otros administradores.
+    // Nadie puede escribir en esa colección desde la app (solo se administra manualmente desde la consola de Firebase).
+    match /admins/{email} {
+      allow get: if request.auth != null && request.auth.token.email == email;
+      allow list: if false;
+      allow write: if false;
+    }
+
+    // Colección: barberos
+    match /barberos/{barberoId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Colección: servicios
+    match /servicios/{servicioId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Colección: bloqueos
+    // Lectura pública necesaria para calcular disponibilidad en vivo; escritura exclusiva de admin
+    match /bloqueos/{bloqueoId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Colección: agenda_dia (disponibilidad y franjas horarias anónimas para evitar colisiones)
+    match /agenda_dia/{docId} {
+      allow read: if true;
+
+      // 1. Creación (cuando el día no existe todavía para ese barbero)
+      allow create: if isAdmin() || (
+        request.resource.data.barbero_id is string &&
+        request.resource.data.fecha is string &&
+        docId == request.resource.data.barbero_id + '_' + request.resource.data.fecha &&
+        request.resource.data.ocupaciones is list &&
+        request.resource.data.ocupaciones.size() == 1 &&
+        request.resource.data.cita_agregada_id is string &&
+        existsAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_agregada_id)) &&
+        getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_agregada_id)).data.estado == 'confirmada' &&
+        getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_agregada_id)).data.barbero_id == request.resource.data.barbero_id &&
+        getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_agregada_id)).data.fecha == request.resource.data.fecha &&
+        request.resource.data.ocupaciones.hasAll([{
+          'id': request.resource.data.cita_agregada_id,
+          'inicio': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_agregada_id)).data.hora_inicio,
+          'fin': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_agregada_id)).data.hora_fin,
+          'tipo': 'cita'
+        }])
+      );
+
+      // 2. Actualización (agregar franja de cita confirmada o liberar franja de cita cancelada)
+      allow update: if isAdmin() || (
+        request.resource.data.barbero_id == resource.data.barbero_id &&
+        request.resource.data.fecha == resource.data.fecha &&
+        (
+          // Caso a: Agregar exactamente una franja válida perteneciente a la cita atómica
+          (
+            request.resource.data.ocupaciones.size() == resource.data.ocupaciones.size() + 1 &&
+            request.resource.data.ocupaciones.hasAll(resource.data.ocupaciones) &&
+            request.resource.data.cita_agregada_id is string &&
+            existsAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_agregada_id)) &&
+            getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_agregada_id)).data.estado == 'confirmada' &&
+            getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_agregada_id)).data.barbero_id == resource.data.barbero_id &&
+            getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_agregada_id)).data.fecha == resource.data.fecha &&
+            request.resource.data.ocupaciones.hasAll([{
+              'id': request.resource.data.cita_agregada_id,
+              'inicio': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_agregada_id)).data.hora_inicio,
+              'fin': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_agregada_id)).data.hora_fin,
+              'tipo': 'cita'
+            }]) &&
+            !resource.data.ocupaciones.hasAny([{
+              'id': request.resource.data.cita_agregada_id,
+              'inicio': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_agregada_id)).data.hora_inicio,
+              'fin': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_agregada_id)).data.hora_fin,
+              'tipo': 'cita'
+            }])
+          )
+          ||
+          // Caso b: Quitar exactamente una franja cuya cita fue cancelada
+          (
+            request.resource.data.ocupaciones.size() == resource.data.ocupaciones.size() - 1 &&
+            request.resource.data.cita_cancelada_id is string &&
+            existsAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_cancelada_id)) &&
+            getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_cancelada_id)).data.estado == 'cancelada' &&
+            getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_cancelada_id)).data.barbero_id == resource.data.barbero_id &&
+            getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_cancelada_id)).data.fecha == resource.data.fecha &&
+            resource.data.ocupaciones.hasAll([{
+              'id': request.resource.data.cita_cancelada_id,
+              'inicio': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_cancelada_id)).data.hora_inicio,
+              'fin': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_cancelada_id)).data.hora_fin,
+              'tipo': 'cita'
+            }]) &&
+            !request.resource.data.ocupaciones.hasAny([{
+              'id': request.resource.data.cita_cancelada_id,
+              'inicio': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_cancelada_id)).data.hora_inicio,
+              'fin': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_cancelada_id)).data.hora_fin,
+              'tipo': 'cita'
+            }]) &&
+            resource.data.ocupaciones.hasAll(request.resource.data.ocupaciones)
+          )
+        )
+      );
+
+      // 3. Eliminación: Solo admin
+      allow delete: if isAdmin();
+    }
+
+    // Colección: indice_telefonos (índice por celular para consulta segura de citas)
+    // Cada documento tiene como ID el número de celular (10 dígitos) y contiene el arreglo "tokens"
+    match /indice_telefonos/{telefono} {
+      // 1. Lectura directa (get): Permitida si el ID del documento es un número de 10 dígitos.
+      // Seguro porque un get puntual siempre apunta a un número exacto ya conocido por quien consulta,
+      // y no permite enumerar ni listar otros números telefónicos.
+      allow get: if isAdmin() || (telefono is string && telefono.size() == 10);
+
+      // 2. Listado: Prohibido para clientes sin autenticar; exclusivo de admin
+      allow list: if isAdmin();
+
+      // 3. Creación y actualización:
+      // Ocurre como parte atómica de la creación de una cita
+      allow create: if isAdmin() || (
+        telefono is string &&
+        telefono.size() == 10 &&
+        request.resource.data.tokens is list &&
+        request.resource.data.tokens.size() > 0
+      );
+
+      allow update: if isAdmin() || (
+        telefono is string &&
+        telefono.size() == 10 &&
+        request.resource.data.tokens is list &&
+        request.resource.data.tokens.size() >= resource.data.tokens.size()
+      );
+
+      // 4. Eliminación: Solo admin
+      allow delete: if isAdmin();
+    }
+
+    // Colección: citas
+    // El ID del documento es el propio token_gestion (de mínimo 16 caracteres alfanuméricos)
+    match /citas/{token} {
+      
+      // 1. Creación: El cliente puede crear su cita directamente con token_gestion igual al ID del documento
+      allow create: if request.resource.data.keys().hasAll([
+        'cliente_nombre', 'cliente_telefono', 'barbero_id', 'servicio_id', 
+        'fecha', 'hora_inicio', 'hora_fin', 'estado', 'token_gestion', 'consentimiento_datos'
+      ]) 
+      && request.resource.data.cliente_nombre is string
+      && request.resource.data.cliente_nombre.size() >= 2
+      && request.resource.data.cliente_telefono is string
+      && request.resource.data.cliente_telefono.matches('^3[0-9]{9}$')
+      && request.resource.data.token_gestion == token
+      && request.resource.data.token_gestion.size() >= 16
+      && request.resource.data.estado == 'confirmada'
+      && request.resource.data.consentimiento_datos == true;
+
+      // 2. Lectura directa (get):
+      // El admin puede leer cualquier cita. El cliente solo puede leer el documento exacto si conoce el token (ID del documento)
+      allow get: if isAdmin() || (resource.data.token_gestion == token);
+      
+      // 3. Listado de citas: Exclusivo para admin autenticado (ningún cliente no autenticado puede listar citas)
+      allow list: if isAdmin();
+
+      // 4. Actualización:
+      // El admin puede cambiar estados o datos.
+      // El cliente sólo puede cancelar su propia cita si conoce el token, afectando únicamente el campo de estado a 'cancelada'
+      allow update: if isAdmin() || (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['estado', 'cancelado_en', 'motivo_cancelacion'])
+        && request.resource.data.estado == 'cancelada'
+        && request.resource.data.token_gestion == token
+      );
+
+      // 5. Eliminación: Solo admin
+      allow delete: if isAdmin();
+    }
+    
+    // Regla de cierre
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Barbería New Concept 24k",
+  "description": "Sitio web oficial y sistema de reservas en vivo de Barbería New Concept 24k en Belén La Nubia, Medellín.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
