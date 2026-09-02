@@ -3,7 +3,7 @@
   "appId": "1:565409244834:web:2058dde14b63c12945d9fb",
   "apiKey": "AIzaSyAOJQgmkHIWD5Fnv5t-H1lkHgV182z37Qc",
   "authDomain": "newconcept24kbarberia.firebaseapp.com",
-  "firestoreDatabaseId": "",
+  "firestoreDatabaseId": "default",
   "storageBucket": "newconcept24kbarberia.firebasestorage.app",
   "messagingSenderId": "565409244834",
   "measurementId": "",
