@@ -241,6 +241,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
       setConfirmedCita(result.cita);
       setStep('confirmacion');
+
+      // Aviso automático a la barbería: se abre WhatsApp con el mensaje de la cita ya escrito
+      // (por restricción propia de WhatsApp, ninguna web puede enviar el mensaje sin que el
+      // cliente le dé "Enviar" una vez que se abre) — el botón "Confirmar por WhatsApp" de la
+      // pantalla de confirmación sigue disponible como respaldo si el navegador bloquea esto.
+      window.open(getWhatsAppBookingLink(result.cita), '_blank', 'noopener,noreferrer');
     } catch (err: any) {
       console.error('Error al confirmar reserva:', err);
       setBookingError(err.message || 'Ocurrió un error al agendar la cita.');
@@ -523,7 +529,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     Horas Disponibles (8:00 a.m. – 9:00 p.m.)
                   </label>
                   <span className="text-[11px] text-neutral-500">
-                    Mínimo 2h de anticipación
+                    Mínimo 30 min de anticipación
                   </span>
                 </div>
 

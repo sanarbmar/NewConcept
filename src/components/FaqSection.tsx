@@ -15,7 +15,7 @@ const FAQS: FaqItem[] = [
   },
   {
     question: '¿Con cuánta anticipación puedo reservar mi cita?',
-    answer: 'Puedes agendar para el mismo día con un mínimo de 2 horas de anticipación, o programar tu turno hasta con 6 días hacia adelante. El sistema calcula en vivo los huecos libres para evitar cualquier cruce.',
+    answer: 'Puedes agendar para el mismo día con un mínimo de 30 minutos de anticipación, o programar tu turno hasta con 6 días hacia adelante. El sistema calcula en vivo los huecos libres para evitar cualquier cruce.',
     icon: <CalendarCheck className="h-4 w-4 text-amber-400" />,
   },
   {

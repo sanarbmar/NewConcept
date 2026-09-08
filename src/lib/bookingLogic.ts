@@ -7,6 +7,11 @@ export const BUSINESS_PHONE_INTL = '573112352517';
 export const BUSINESS_INSTAGRAM = '@sebas_thebarber24k';
 export const BUSINESS_ADDRESS = 'Cra. 82 # 18AA-4, Belén La Nubia, Medellín';
 
+// Horario de atención y reglas de anticipación (usados en getAvailableDates y calculateAvailableSlots)
+export const OPENING_MINUTES = 8 * 60; // 08:00 a.m.
+export const CLOSING_MINUTES = 21 * 60; // 09:00 p.m.
+export const ANTICIPACION_MINIMA_MINUTOS = 30; // mínimo de anticipación para reservar (mismo día)
+
 // Obtener fecha y hora actual en la zona horaria de Colombia (America/Bogota)
 export function getBogotaNow(): Date {
   const now = new Date();
@@ -101,11 +106,11 @@ export function getAvailableDates(): AvailableDate[] {
       continue;
     }
 
-    // Si es hoy, verificar si aún es antes de las 19:00 (para alcanzar a cumplir 2 horas antes de las 21:00)
+    // Si es hoy, verificar si aún queda margen para cumplir la anticipación mínima antes del cierre
     if (i === 0) {
       const currentMinutes = d.getHours() * 60 + d.getMinutes();
-      // Si ya son más de las 19:00 en Colombia, hoy ya no hay citas viables con 2h de anticipación
-      if (currentMinutes >= 19 * 60) {
+      // Si ya no queda ni un minuto de anticipación antes del cierre, hoy ya no hay citas viables
+      if (currentMinutes >= CLOSING_MINUTES - ANTICIPACION_MINIMA_MINUTOS) {
         continue;
       }
     }
@@ -141,16 +146,16 @@ export function calculateAvailableSlots(
   const isToday = selectedDateIso === formatDateIso(bogotaNow);
   const currentMinutesBogota = isToday ? bogotaNow.getHours() * 60 + bogotaNow.getMinutes() : 0;
 
-  const openingMinutes = 8 * 60; // 08:00 a.m. (480 min)
-  const closingMinutes = 21 * 60; // 21:00 (1260 min)
-  
-  const step = 15; // Intervalos cada 15 minutos para encajar servicios de 15, 20, 60 y 75 min
+  const openingMinutes = OPENING_MINUTES;
+  const closingMinutes = CLOSING_MINUTES;
+
+  const step = 15; // Intervalos cada 15 minutos para encajar servicios de 15, 20, 60 y 90 min
   const slots: string[] = [];
 
   for (let startMin = openingMinutes; startMin + duracionMinutos <= closingMinutes; startMin += step) {
-    // Si es hoy: regla de mínimo 2 horas de anticipación (120 minutos)
-    // Ej: si son las 2:00 p.m. (840 min), startMin debe ser estrictamente mayor a 840 + 120 (960 min = 4:00 p.m.)
-    if (isToday && startMin <= currentMinutesBogota + 120) {
+    // Si es hoy: regla de mínimo de anticipación (ANTICIPACION_MINIMA_MINUTOS)
+    // Ej: con 30 min de anticipación, si son las 2:00 p.m. (840 min), startMin debe ser estrictamente mayor a 840 + 30 (870 min = 2:30 p.m.)
+    if (isToday && startMin <= currentMinutesBogota + ANTICIPACION_MINIMA_MINUTOS) {
       continue;
     }
 
@@ -387,7 +392,7 @@ export async function cancelBooking(token: string, motivo?: string): Promise<voi
 
 // Generar link de WhatsApp con mensaje listo
 export function getWhatsAppBookingLink(cita: Cita): string {
-  const texto = `Hola Barbería New Concept 24k, acabo de agendar una cita para *${cita.servicio_nombre}* con *${cita.barbero_nombre}* el día *${cita.fecha}* a las *${cita.hora_inicio}*.\n\nMi nombre es *${cita.cliente_nombre}* y mi código de reserva es *${cita.token_gestion}*.\n\n¡Muchas gracias!`;
+  const texto = `Hola Barbería New Concept 24k, acabo de agendar una cita. Estos son los datos:\n\n*Cliente:* ${cita.cliente_nombre}\n*Teléfono:* ${cita.cliente_telefono}\n*Servicio:* ${cita.servicio_nombre}\n*Barbero:* ${cita.barbero_nombre}\n*Fecha:* ${cita.fecha}\n*Hora:* ${cita.hora_inicio} - ${cita.hora_fin}\n*Valor:* ${formatCOP(cita.precio)}\n*Código de reserva:* ${cita.token_gestion}\n\n¡Muchas gracias!`;
   return `https://wa.me/${BUSINESS_PHONE_INTL}?text=${encodeURIComponent(texto)}`;
 }
 
