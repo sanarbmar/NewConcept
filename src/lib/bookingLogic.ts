@@ -405,3 +405,33 @@ export function getWhatsAppCancellationNoticeLink(cita: Cita): string {
   const texto = `Hola Barbería New Concept 24k, me comunico respecto a mi cita de *${cita.servicio_nombre}* programada para el *${cita.fecha}* a las *${cita.hora_inicio}* con *${cita.barbero_nombre}* (Código: *${cita.token_gestion}*). Necesito cancelarla o reprogramarla.`;
   return `https://wa.me/${BUSINESS_PHONE_INTL}?text=${encodeURIComponent(texto)}`;
 }
+
+// Detecta si el navegador corre en un celular (Android/iPhone/iPad). Se usa para decidir
+// cómo abrir WhatsApp automáticamente al confirmar una reserva (ver openWhatsAppAuto).
+export function isMobileUserAgent(): boolean {
+  if (typeof navigator === 'undefined' || !navigator.userAgent) return false;
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+// Abre un enlace de wa.me automáticamente, eligiendo la estrategia correcta según el
+// dispositivo:
+// - En computador: abre una pestaña nueva (window.open), que lleva a WhatsApp Web.
+// - En celular: redirige la MISMA pestaña (window.location.href) a wa.me, en vez de abrir
+//   una pestaña nueva. Esto es a propósito y no es un descuido: la mayoría de navegadores
+//   móviles (Safari en iPhone, Chrome en Android, y sobre todo los navegadores internos de
+//   apps como Instagram/WhatsApp) bloquean silenciosamente cualquier window.open() que
+//   ocurra después de una espera asíncrona (como la confirmación de la reserva contra
+//   Firestore) — solo permiten abrir una pestaña nueva si ocurre de forma inmediata dentro
+//   del mismo clic del usuario, sin ningún "await" en el medio. Una redirección normal
+//   (location.href) no tiene esa restricción, y en celular funciona igual de bien: el
+//   sistema operativo intercepta el enlace wa.me y abre la app de WhatsApp directamente,
+//   sin perder la pantalla de confirmación (al volver con el botón de atrás, el cliente
+//   sigue viendo su cita confirmada).
+export function openWhatsAppAuto(url: string): void {
+  if (typeof window === 'undefined') return;
+  if (isMobileUserAgent()) {
+    window.location.href = url;
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
