@@ -290,7 +290,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
       setBloqueoFeedback({
         tipo: 'exito',
         texto: `Horario bloqueado con éxito para ${
-          nuevoBloqueoBarbero === 'barbero_ciro' ? 'Jhon Ciro' : 'Sebastián Correa'
+          nuevoBloqueoBarbero === 'barbero_ciro' ? 'Sebastián Ciro' : 'Sebastián Correa'
         } (${nuevoBloqueoInicio} - ${nuevoBloqueoFin}).`,
       });
     } catch (err: any) {
@@ -660,7 +660,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                   >
                     <option value="todos">Todos los Barberos</option>
                     <option value="barbero_sebas">Sebastián Correa</option>
-                    <option value="barbero_ciro">Jhon Ciro</option>
+                    <option value="barbero_ciro">Sebastián Ciro</option>
                   </select>
                 </div>
 
@@ -916,7 +916,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                     onChange={(e) => setNuevoBloqueoBarbero(e.target.value)}
                     className="w-full p-2.5 rounded-xl bg-neutral-950 border border-neutral-700 text-white font-bold"
                   >
-                    <option value="barbero_ciro">Jhon Ciro</option>
+                    <option value="barbero_ciro">Sebastián Ciro</option>
                     <option value="barbero_sebas">Sebastián Correa</option>
                   </select>
                 </div>
@@ -995,7 +995,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
                           <span className="font-black text-amber-400 uppercase">
-                            {bloqueo.barbero_id === 'barbero_ciro' ? 'Jhon Ciro' : 'Sebastián Correa'}
+                            {bloqueo.barbero_id === 'barbero_ciro' ? 'Sebastián Ciro' : 'Sebastián Correa'}
                           </span>
                           <span className="text-neutral-400 font-mono">• {bloqueo.fecha}</span>
                           <span className="font-bold text-white">
@@ -1086,7 +1086,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
 
                 <div>
                   <div className="flex justify-between mb-1">
-                    <span className="font-bold text-white">Jhon Ciro</span>
+                    <span className="font-bold text-white">Sebastián Ciro</span>
                     <span className="font-black text-amber-400">{citasCiro} citas</span>
                   </div>
                   <div className="h-2 rounded-full bg-neutral-950 overflow-hidden">

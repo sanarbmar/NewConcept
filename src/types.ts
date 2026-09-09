@@ -3,6 +3,7 @@ export type EstadoCita = 'confirmada' | 'completada' | 'cancelada' | 'no_show';
 export interface Barbero {
   id: string;
   nombre: string;
+  nombre_corto?: string; // Nombre corto para mostrar en botones cuando el primer nombre no basta para diferenciar (p. ej. dos barberos llamados Sebastián)
   rol: string;
   especialidad: string;
   foto_url: string;

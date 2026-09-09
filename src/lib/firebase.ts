@@ -27,6 +27,7 @@ export const BARBEROS_BASE: Barbero[] = [
   {
     id: 'barbero_sebas',
     nombre: 'Sebastián Correa',
+    nombre_corto: 'Sebastián',
     rol: 'Dueño & Master Barber',
     especialidad: 'Especialista en todos los servicios, con máxima maestría en corte con barba y perfilado.',
     foto_url: '',
@@ -36,7 +37,8 @@ export const BARBEROS_BASE: Barbero[] = [
   },
   {
     id: 'barbero_ciro',
-    nombre: 'Jhon Ciro',
+    nombre: 'Sebastián Ciro',
+    nombre_corto: 'Ciro',
     rol: 'Barbero Profesional',
     especialidad: 'Especialista en todos los servicios, con gran precisión en corte con barba y acabados urbanos.',
     foto_url: '',

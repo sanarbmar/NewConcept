@@ -30,7 +30,7 @@ const FAQS: FaqItem[] = [
   },
   {
     question: '¿Puedo elegir el barbero que me atenderá?',
-    answer: 'Sí, absolutamente. En New Concept 24k el cliente siempre elige de manera específica si desea su corte con Sebastián Correa o con Jhon Ciro. Nunca asignamos turnos al azar.',
+    answer: 'Sí, absolutamente. En New Concept 24k el cliente siempre elige de manera específica si desea su corte con Sebastián Correa o con Sebastián Ciro. Nunca asignamos turnos al azar.',
     icon: <Scissors className="h-4 w-4 text-amber-400" />,
   },
 ];

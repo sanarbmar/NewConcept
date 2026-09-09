@@ -25,7 +25,7 @@ export const AboutSection: React.FC = () => {
                 <strong>Barbería New Concept 24k</strong> nació en las esquinas vibrantes de <strong>Belén La Nubia</strong>, Medellín. Lo que comenzó hace más de 10 años con un par de máquinas y una pasión implacable por el arte urbano del barbero, se consolidó en un concepto único: fusionar la autenticidad callejera con la disciplina y pulcritud corporativa.
               </p>
               <p>
-                Encabezada por <strong>Sebastián Correa</strong> y respaldada por la precisión de <strong>Jhon Ciro</strong>, nuestra casa no improvisa. Creemos que un corte no es un trámite de 15 minutos al azar; es tu tarjeta de presentación, tu confianza y tu sello personal.
+                Encabezada por <strong>Sebastián Correa</strong> y respaldada por la precisión de <strong>Sebastián Ciro</strong>, nuestra casa no improvisa. Creemos que un corte no es un trámite de 15 minutos al azar; es tu tarjeta de presentación, tu confianza y tu sello personal.
               </p>
               <p className="text-neutral-400 text-sm">
                 En nuestro sillón encuentras música urbana selecta, ambiente sobrio y la certeza de que saldrás con la línea exactamente donde debe estar. Sin rodeos, con calidad certificada 24k.

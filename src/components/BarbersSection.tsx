@@ -92,7 +92,7 @@ export const BarbersSection: React.FC<BarbersSectionProps> = ({ onSelectBarber }
                     className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-xs uppercase tracking-wider shadow-[0_0_20px_rgba(245,158,11,0.25)] hover:shadow-[0_0_30px_rgba(245,158,11,0.4)] transition-all"
                   >
                     <Calendar className="h-4 w-4" />
-                    <span>Reservar con {barbero.nombre.split(' ')[0]}</span>
+                    <span>Reservar con {barbero.nombre_corto || barbero.nombre.split(' ')[0]}</span>
                   </button>
                 </div>
               </div>
