@@ -54,7 +54,7 @@ export const LocationSection: React.FC<LocationSectionProps> = ({ onOpenBooking 
                   <div className="mt-2 space-y-1 text-xs">
                     <div className="flex justify-between text-neutral-300">
                       <span>Lunes a Sábado:</span>
-                      <span className="font-semibold text-amber-400">8:00 a.m. – 9:00 p.m.</span>
+                      <span className="font-semibold text-amber-400">10:00 a.m. – 8:00 p.m.</span>
                     </div>
                     <div className="flex justify-between text-neutral-500">
                       <span>Domingos:</span>

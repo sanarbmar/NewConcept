@@ -83,8 +83,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   // Formulario de Bloqueo
   const [nuevoBloqueoBarbero, setNuevoBloqueoBarbero] = useState('barbero_ciro');
   const [nuevoBloqueoFecha, setNuevoBloqueoFecha] = useState(formatDateIso(getBogotaNow()));
-  const [nuevoBloqueoInicio, setNuevoBloqueoInicio] = useState('08:00');
-  const [nuevoBloqueoFin, setNuevoBloqueoFin] = useState('11:00');
+  const [nuevoBloqueoInicio, setNuevoBloqueoInicio] = useState('10:00');
+  const [nuevoBloqueoFin, setNuevoBloqueoFin] = useState('12:00');
   const [nuevoBloqueoMotivo, setNuevoBloqueoMotivo] = useState('Ciro entra tarde');
   const [creandoBloqueo, setCreandoBloqueo] = useState(false);
   const [liberandoBloqueoId, setLiberandoBloqueoId] = useState<string | null>(null);

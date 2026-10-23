@@ -530,7 +530,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-neutral-300">
-                    Horas Disponibles (8:00 a.m. – 9:00 p.m.)
+                    Horas Disponibles (10:00 a.m. – 8:00 p.m.)
                   </label>
                   <span className="text-[11px] text-neutral-500">
                     Mínimo 30 min de anticipación

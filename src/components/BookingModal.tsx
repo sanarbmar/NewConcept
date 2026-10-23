@@ -109,6 +109,44 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   // Fetch available slots when barbero, servicio or date changes
   useEffect(() => {
+    let cancelado = false;
+
+    // Consulta en vivo a Firestore (agenda_dia + bloqueos) y cálculo de franjas disponibles.
+    // Se aisló en su propia función porque fetchSlots la llama hasta dos veces: la consulta
+    // normal, y un reintento automático si la primera consulta vuelve vacía (ver más abajo).
+    async function consultarSlotsDisponibles(barberoId: string, fecha: string, duracion: number): Promise<string[]> {
+      // 1. Obtener ocupaciones de agenda_dia
+      const agendaRef = doc(db, 'agenda_dia', `${barberoId}_${fecha}`);
+      const agendaSnap = await getDoc(agendaRef);
+      const ocupacionesAgenda: OcupacionSlot[] = agendaSnap.exists()
+        ? (agendaSnap.data().ocupaciones as OcupacionSlot[]) || []
+        : [];
+
+      // 2. Obtener bloqueos manuales activos para este barbero y fecha
+      const bloqueosRef = collection(db, 'bloqueos');
+      const qBloqueos = query(
+        bloqueosRef,
+        where('barbero_id', '==', barberoId),
+        where('fecha', '==', fecha)
+      );
+      const bloqueosSnap = await getDocs(qBloqueos);
+      const ocupacionesBloqueos: OcupacionSlot[] = bloqueosSnap.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          inicio: data.hora_inicio,
+          fin: data.hora_fin,
+          tipo: 'bloqueo',
+        };
+      });
+
+      // Combinar ocupaciones
+      const todasOcupaciones = [...ocupacionesAgenda, ...ocupacionesBloqueos];
+
+      // 3. Calcular en vivo los slots disponibles
+      return calculateAvailableSlots(fecha, duracion, todasOcupaciones);
+    }
+
     async function fetchSlots() {
       if (!selectedBarbero || !selectedServicio || !selectedDate) {
         return;
@@ -119,52 +157,51 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       setSelectedSlot('');
 
       try {
-        // 1. Obtener ocupaciones de agenda_dia
-        const agendaRef = doc(db, 'agenda_dia', `${selectedBarbero.id}_${selectedDate}`);
-        const agendaSnap = await getDoc(agendaRef);
-        const ocupacionesAgenda: OcupacionSlot[] = agendaSnap.exists()
-          ? (agendaSnap.data().ocupaciones as OcupacionSlot[]) || []
-          : [];
-
-        // 2. Obtener bloqueos manuales activos para este barbero y fecha
-        const bloqueosRef = collection(db, 'bloqueos');
-        const qBloqueos = query(
-          bloqueosRef,
-          where('barbero_id', '==', selectedBarbero.id),
-          where('fecha', '==', selectedDate)
-        );
-        const bloqueosSnap = await getDocs(qBloqueos);
-        const ocupacionesBloqueos: OcupacionSlot[] = bloqueosSnap.docs.map((d) => {
-          const data = d.data();
-          return {
-            id: d.id,
-            inicio: data.hora_inicio,
-            fin: data.hora_fin,
-            tipo: 'bloqueo',
-          };
-        });
-
-        // Combinar ocupaciones
-        const todasOcupaciones = [...ocupacionesAgenda, ...ocupacionesBloqueos];
-
-        // 3. Calcular en vivo los slots disponibles
-        const slots = calculateAvailableSlots(
+        let slots = await consultarSlotsDisponibles(
+          selectedBarbero.id,
           selectedDate,
-          selectedServicio.duracion_minutos,
-          todasOcupaciones
+          selectedServicio.duracion_minutos
         );
+
+        // Defensa contra una carrera intermitente observada en vivo: justo después de cargar
+        // la página, la primera consulta a Firestore a veces vuelve con el canal de conexión
+        // aún calentando y devuelve un resultado vacío (0 franjas) aunque en realidad SÍ haya
+        // horarios libres — comprobado comparando la misma consulta repetida segundos después,
+        // con datos idénticos, que sí trae resultados. Antes de mostrarle al cliente "no hay
+        // turnos disponibles" (que puede hacerle creer que el negocio está lleno cuando no lo
+        // está), reintentamos la consulta una sola vez tras una breve pausa. Si el reintento
+        // también vuelve vacío, ahí sí es una ausencia real de disponibilidad.
+        if (slots.length === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 700));
+          if (cancelado) return;
+          slots = await consultarSlotsDisponibles(
+            selectedBarbero.id,
+            selectedDate,
+            selectedServicio.duracion_minutos
+          );
+        }
+
+        if (cancelado) return;
         setAvailableSlots(slots);
       } catch (err: any) {
+        if (cancelado) return;
         console.error('Error calculando disponibilidad:', err);
         setBookingError('No se pudo calcular la disponibilidad. Inténtalo de nuevo.');
       } finally {
-        setLoadingSlots(false);
+        if (!cancelado) setLoadingSlots(false);
       }
     }
 
     if (step === 'fecha_hora') {
       fetchSlots();
     }
+
+    // Si el barbero, servicio, fecha o paso cambian mientras el reintento automático de
+    // arriba está en su pausa de espera, cancelamos esa consulta vieja para no pisar con un
+    // resultado desactualizado el de la nueva selección del cliente.
+    return () => {
+      cancelado = true;
+    };
   }, [selectedBarbero, selectedServicio, selectedDate, step]);
 
   if (!isOpen) return null;
@@ -530,7 +567,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-neutral-300">
-                    Horas Disponibles (8:00 a.m. – 9:00 p.m.)
+                    Horas Disponibles (10:00 a.m. – 8:00 p.m.)
                   </label>
                   <span className="text-[11px] text-neutral-500">
                     Mínimo 30 min de anticipación

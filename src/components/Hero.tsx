@@ -116,7 +116,7 @@ export const Hero: React.FC<HeroProps> = ({ onOpenBooking, onExploreServices }) 
             <Clock className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
             <div>
               <p className="text-xs font-bold text-white uppercase tracking-wider">Lun - Sáb</p>
-              <p className="text-[11px] text-neutral-400">8:00 a.m. a 9:00 p.m.</p>
+              <p className="text-[11px] text-neutral-400">10:00 a.m. a 8:00 p.m.</p>
             </div>
           </div>
 

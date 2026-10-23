@@ -77,7 +77,7 @@ export const Footer: React.FC<FooterProps> = ({
             <ul className="space-y-2 text-xs">
               <li className="flex items-start gap-2">
                 <Clock className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
-                <span>Lun - Sáb: 8:00 a.m. a 9:00 p.m. (Dom cerrado)</span>
+                <span>Lun - Sáb: 10:00 a.m. a 8:00 p.m. (Dom cerrado)</span>
               </li>
               <li className="flex items-start gap-2">
                 <MapPin className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />

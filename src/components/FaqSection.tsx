@@ -10,7 +10,7 @@ interface FaqItem {
 const FAQS: FaqItem[] = [
   {
     question: '¿Cuál es el horario de atención de la barbería?',
-    answer: 'Atendemos de lunes a sábado desde las 8:00 a.m. hasta las 9:00 p.m. de forma continua. Los domingos permanecemos cerrados.',
+    answer: 'Atendemos de lunes a sábado desde las 10:00 a.m. hasta las 8:00 p.m. de forma continua. Los domingos permanecemos cerrados.',
     icon: <Clock className="h-4 w-4 text-amber-400" />,
   },
   {

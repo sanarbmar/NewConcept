@@ -8,8 +8,8 @@ export const BUSINESS_INSTAGRAM = '@sebas_thebarber24k';
 export const BUSINESS_ADDRESS = 'Cra. 82 # 18AA-4, Belén La Nubia, Medellín';
 
 // Horario de atención y reglas de anticipación (usados en getAvailableDates y calculateAvailableSlots)
-export const OPENING_MINUTES = 8 * 60; // 08:00 a.m.
-export const CLOSING_MINUTES = 21 * 60; // 09:00 p.m.
+export const OPENING_MINUTES = 10 * 60; // 10:00 a.m.
+export const CLOSING_MINUTES = 20 * 60; // 08:00 p.m.
 export const ANTICIPACION_MINIMA_MINUTOS = 30; // mínimo de anticipación para reservar (mismo día)
 
 // Obtener fecha y hora actual en la zona horaria de Colombia (America/Bogota)
@@ -136,7 +136,7 @@ export interface OcupacionSlot {
 }
 
 // Generar franjas horarias disponibles para un día y duración dada
-// Horario: Lunes a Sábado, 8:00 a.m. a 9:00 p.m. (480 a 1260 minutos)
+// Horario: Lunes a Sábado, 10:00 a.m. a 8:00 p.m. (600 a 1200 minutos)
 export function calculateAvailableSlots(
   selectedDateIso: string,
   duracionMinutos: number,
@@ -149,7 +149,7 @@ export function calculateAvailableSlots(
   const openingMinutes = OPENING_MINUTES;
   const closingMinutes = CLOSING_MINUTES;
 
-  const step = 15; // Intervalos cada 15 minutos para encajar servicios de 15, 20, 60 y 90 min
+  const step = 60; // Citas en punto: cada franja ofrecida empieza en una hora exacta (10:00, 11:00, 12:00...)
   const slots: string[] = [];
 
   for (let startMin = openingMinutes; startMin + duracionMinutos <= closingMinutes; startMin += step) {
@@ -202,8 +202,8 @@ export async function createBookingTransaction(params: {
   const endMinutes = startMinutes + duracion;
   const hora_fin = minutesToTime(endMinutes);
 
-  if (endMinutes > 21 * 60) {
-    throw new Error('La cita no puede terminar después del horario de cierre (9:00 p.m.).');
+  if (endMinutes > CLOSING_MINUTES) {
+    throw new Error('La cita no puede terminar después del horario de cierre (8:00 p.m.).');
   }
 
     // 4. Preparar el documento de la cita
