@@ -1,6 +1,7 @@
 import React from 'react';
-import { User, Award, Calendar, Check, Flame } from 'lucide-react';
+import { Award, Calendar, Check, Flame } from 'lucide-react';
 import { BARBEROS_BASE } from '../lib/firebase';
+import { BarberAvatar } from './BarberAvatar';
 
 interface BarbersSectionProps {
   onSelectBarber: (barberoId: string) => void;
@@ -33,12 +34,16 @@ export const BarbersSection: React.FC<BarbersSectionProps> = ({ onSelectBarber }
                 className="group relative flex flex-col justify-between rounded-2xl bg-neutral-900/60 border border-neutral-800 hover:border-amber-500/60 p-8 transition-all duration-300 hover:shadow-[0_0_30px_rgba(245,158,11,0.12)] hover:-translate-y-1"
               >
                 <div>
-                  {/* Silueta / Ícono genérico estilizado con acentos en oro 24k (sin fotos de banco de imágenes) */}
+                  {/* Foto real del barbero (con respaldo al ícono si la imagen no carga) y sello 24k en oro */}
                   <div className="flex items-center gap-5 mb-6">
-                    <div className="relative h-20 w-20 rounded-2xl bg-gradient-to-br from-neutral-800 via-neutral-900 to-neutral-950 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.15)] group-hover:scale-105 transition-transform">
-                      {/* Silueta artística vectorial limpia */}
-                      <User className="h-10 w-10 text-amber-400/90" />
-                      <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-amber-500 text-neutral-950 flex items-center justify-center text-[10px] font-black">
+                    <div className="relative h-24 w-24 shrink-0 group-hover:scale-105 transition-transform">
+                      <BarberAvatar
+                        fotoUrl={barbero.foto_url}
+                        nombre={barbero.nombre}
+                        className="h-full w-full ring-2 ring-amber-500/50 ring-offset-2 ring-offset-neutral-900 shadow-[0_0_20px_rgba(245,158,11,0.2)]"
+                        iconClassName="h-10 w-10 text-amber-400/90"
+                      />
+                      <div className="absolute bottom-0 right-0 h-7 w-7 rounded-full bg-amber-500 text-neutral-950 flex items-center justify-center text-[10px] font-black ring-2 ring-neutral-900">
                         24k
                       </div>
                     </div>

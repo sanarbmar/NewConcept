@@ -30,7 +30,8 @@ export const BARBEROS_BASE: Barbero[] = [
     nombre_corto: 'Sebastián',
     rol: 'Dueño & Master Barber',
     especialidad: 'Especialista en todos los servicios, con máxima maestría en corte con barba y perfilado.',
-    foto_url: '',
+    // Ruta relativa a propósito: el sitio vive en la subcarpeta /NewConcept/ de GitHub Pages (archivo en /public/barberos/)
+    foto_url: 'barberos/sebastian-correa.jpg',
     activo: true,
     orden: 1,
     es_dueno: true,
@@ -41,7 +42,7 @@ export const BARBEROS_BASE: Barbero[] = [
     nombre_corto: 'Ciro',
     rol: 'Barbero Profesional',
     especialidad: 'Especialista en todos los servicios, con gran precisión en corte con barba y acabados urbanos.',
-    foto_url: '',
+    foto_url: 'barberos/ciro.jpg',
     activo: true,
     orden: 2,
     es_dueno: false,

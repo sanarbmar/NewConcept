@@ -3,7 +3,6 @@ import {
   X,
   Calendar,
   Clock,
-  User,
   Scissors,
   CheckCircle2,
   AlertCircle,
@@ -33,6 +32,7 @@ import {
 } from '../lib/bookingLogic';
 import { Barbero, Servicio, Cita } from '../types';
 import { DataPrivacyModal } from './DataPrivacyModal';
+import { BarberAvatar } from './BarberAvatar';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -406,10 +406,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                       }`}
                     >
                       <div className="flex items-center gap-4 mb-4">
-                        {/* Silueta vectorial estilizada */}
-                        <div className="h-14 w-14 rounded-xl bg-neutral-950 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-                          <User className="h-7 w-7" />
-                        </div>
+                        {/* Foto del barbero (con respaldo al ícono si no carga) */}
+                        <BarberAvatar
+                          fotoUrl={barbero.foto_url}
+                          nombre={barbero.nombre}
+                          className="h-16 w-16"
+                          iconClassName="h-7 w-7"
+                        />
                         <div>
                           <h5 className="text-base font-black text-white uppercase">
                             {barbero.nombre}

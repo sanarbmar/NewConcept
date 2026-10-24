@@ -332,12 +332,26 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onSelectService 
               onClick={cerrar}
             />
 
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-3 sm:p-6">
+            {/* Un solo contenedor de scroll para todo el modal (sin barra visible y sin scroll
+                anidado dentro del texto): si la pantalla es baja, se desliza el modal completo
+                como una página. Tocar fuera del diálogo lo cierra. */}
+            <div
+              className="absolute inset-0 overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) cerrar();
+              }}
+            >
+              <div
+                className="flex min-h-full items-center justify-center p-3 sm:p-6"
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) cerrar();
+                }}
+              >
               <div
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={`blow-title-${selected.id}`}
-                className="pointer-events-auto relative w-full max-w-4xl md:grid md:grid-cols-[5fr_6fr]"
+                className="relative w-full max-w-4xl md:grid md:grid-cols-[5fr_6fr]"
               >
                 {/* Superficie del diálogo */}
                 <motion.div
@@ -353,13 +367,13 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onSelectService 
                 <motion.div
                   layoutId={`blow-img-${selected.id}`}
                   transition={layoutTransition}
-                  className="relative aspect-[4/4.2] md:aspect-auto md:h-[min(640px,84dvh)] overflow-hidden rounded-t-3xl md:rounded-tr-none md:rounded-l-3xl"
+                  className="relative h-[30dvh] min-h-[200px] md:h-auto md:min-h-[480px] overflow-hidden rounded-t-3xl md:rounded-tr-none md:rounded-l-3xl"
                 >
                   <motion.img
                     src={selected.imageUrl}
                     alt={`Blow ${selected.category.toLowerCase()}${selected.cliente ? ` para ${selected.cliente.name}` : ''}`}
                     style={{ objectPosition: selected.objectPosition }}
-                    className="h-full w-full object-cover"
+                    className="absolute inset-0 h-full w-full object-cover"
                     initial={{ scale: 1 }}
                     animate={reduce ? { scale: 1 } : { scale: 1.08 }}
                     transition={{ duration: 12, ease: 'linear' }}
@@ -374,7 +388,7 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onSelectService 
                   initial="hidden"
                   animate="show"
                   exit={{ opacity: 0, transition: { duration: reduce ? 0 : 0.2 } }}
-                  className="relative max-h-[46dvh] md:max-h-[min(640px,84dvh)] overflow-y-auto p-6 sm:p-8 md:p-10 flex flex-col"
+                  className="relative p-5 sm:p-7 md:p-8 flex flex-col"
                 >
                   <div className="pointer-events-none absolute -top-20 -right-20 h-52 w-52 rounded-full bg-amber-500/10 blur-3xl" />
 
@@ -391,10 +405,10 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onSelectService 
                     )}
                   </motion.div>
 
-                  <motion.div variants={itemVariants} className="relative mt-4">
+                  <motion.div variants={itemVariants} className="relative mt-3 md:mt-4">
                     <h3
                       id={`blow-title-${selected.id}`}
-                      className="text-5xl sm:text-6xl font-black uppercase leading-[0.95] tracking-tight text-white"
+                      className="text-4xl sm:text-5xl md:text-6xl font-black uppercase leading-[0.95] tracking-tight text-white"
                     >
                       {selected.title}
                     </h3>
@@ -405,7 +419,7 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onSelectService 
                     )}
                     <motion.span
                       aria-hidden="true"
-                      className="mt-4 block h-0.5 w-24 origin-left bg-gradient-to-r from-amber-300 to-amber-600"
+                      className="mt-3 md:mt-4 block h-0.5 w-24 origin-left bg-gradient-to-r from-amber-300 to-amber-600"
                       initial={{ scaleX: reduce ? 1 : 0 }}
                       animate={{ scaleX: 1 }}
                       transition={{ delay: 0.5, duration: 0.7, ease: EASE_OUT }}
@@ -415,26 +429,26 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onSelectService 
                   {selected.cliente && (
                     <motion.p
                       variants={itemVariants}
-                      className="relative mt-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-300"
+                      className="relative mt-3 md:mt-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-300"
                     >
                       <Music2 className="h-3.5 w-3.5 text-amber-400" />
                       {selected.cliente.role}
                     </motion.p>
                   )}
 
-                  <div className="relative mt-5 space-y-3">
+                  <div className="relative mt-4 md:mt-5 space-y-2.5 md:space-y-3">
                     {selected.historia.map((parrafo, i) => (
                       <motion.p
                         key={i}
                         variants={itemVariants}
-                        className="text-sm sm:text-[15px] leading-relaxed text-neutral-300"
+                        className="text-[13.5px] sm:text-sm md:text-[15px] leading-relaxed text-neutral-300"
                       >
                         {parrafo}
                       </motion.p>
                     ))}
                   </div>
 
-                  <motion.ul variants={itemVariants} className="relative mt-5 flex flex-wrap gap-2">
+                  <motion.ul variants={itemVariants} className="relative mt-4 md:mt-5 flex flex-wrap gap-2">
                     {selected.detalles.map((detalle) => (
                       <li
                         key={detalle}
@@ -445,7 +459,7 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onSelectService 
                     ))}
                   </motion.ul>
 
-                  <motion.div variants={itemVariants} className="relative mt-auto pt-7">
+                  <motion.div variants={itemVariants} className="relative mt-auto pt-5 md:pt-6">
                     {servicioSeleccionado && (
                       <p className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-neutral-400">
                         <span className="font-bold text-white">{servicioSeleccionado.nombre}</span>
@@ -479,10 +493,11 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onSelectService 
                   animate={{ opacity: 1, scale: 1, rotate: 0 }}
                   exit={{ opacity: 0, transition: { duration: reduce ? 0 : 0.15 } }}
                   transition={{ delay: reduce ? 0 : 0.35, duration: 0.4, ease: EASE_OUT }}
-                  className="absolute right-3 top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-neutral-600 bg-neutral-950/80 text-white backdrop-blur-sm transition-colors hover:border-amber-400 hover:text-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                  className="fixed right-5 top-5 md:absolute md:right-3 md:top-3 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-neutral-600 bg-neutral-950/80 text-white backdrop-blur-sm transition-colors hover:border-amber-400 hover:text-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
                 >
                   <X className="h-5 w-5" />
                 </motion.button>
+              </div>
               </div>
             </div>
           </motion.div>
