@@ -311,6 +311,148 @@ export async function createBookingTransaction(params: {
   };
 }
 
+// ---------------------------------------------------------------------------
+// CITAS MANUALES (solo administrador)
+// El barbero registra desde el panel las citas que no entran por la página
+// (clientes de paso, WhatsApp, llamadas...). La duración es libre: 15, 30, 45,
+// 90 min, lo que necesite. Se guarda igual que una cita web (citas + agenda_dia)
+// para que el hueco quede ocupado también en la reserva en línea.
+// Requiere que las reglas de Firestore permitan a isAdmin() crear en `citas`.
+// ---------------------------------------------------------------------------
+export interface CitaManualParams {
+  cliente_nombre: string;
+  cliente_telefono?: string; // opcional: puede ir vacío
+  barbero_id: string;
+  barbero_nombre: string;
+  servicio_id: string;
+  servicio_nombre: string;
+  precio: number;
+  duracion_minutos: number;
+  fecha: string;
+  hora_inicio: string;
+  estado_inicial?: 'confirmada' | 'completada';
+  notas?: string;
+}
+
+export async function createManualBookingTransaction(
+  params: CitaManualParams
+): Promise<{ cita: Cita; token: string }> {
+  const nombre = params.cliente_nombre.trim();
+  if (nombre.length < 2) {
+    throw new Error('Escribe el nombre del cliente (mínimo 2 letras).');
+  }
+
+  const telefonoLimpio = cleanPhone(params.cliente_telefono || '');
+  if (telefonoLimpio && !isValidColombianPhone(telefonoLimpio)) {
+    throw new Error('El celular debe tener 10 dígitos y empezar por 3 (ej. 3112352517), o déjalo vacío.');
+  }
+
+  const duracion = Math.round(params.duracion_minutos);
+  if (!Number.isFinite(duracion) || duracion < 5 || duracion > 600) {
+    throw new Error('La duración debe estar entre 5 y 600 minutos.');
+  }
+
+  const startMinutes = timeToMinutes(params.hora_inicio);
+  if (!Number.isFinite(startMinutes)) {
+    throw new Error('Selecciona la hora de inicio de la cita.');
+  }
+  const endMinutes = startMinutes + duracion;
+  if (endMinutes > 24 * 60) {
+    throw new Error('La cita no puede pasar de la medianoche. Reduce la duración o adelanta la hora de inicio.');
+  }
+  const hora_fin = minutesToTime(endMinutes);
+
+  const token = generateTokenGestion();
+  const citaRef = doc(db, 'citas', token);
+  const agendaRef = doc(db, 'agenda_dia', `${params.barbero_id}_${params.fecha}`);
+  const indiceRef = telefonoLimpio ? doc(db, 'indice_telefonos', telefonoLimpio) : null;
+
+  const ahoraIso = new Date().toISOString();
+  const nuevaCita: Cita = {
+    id: token,
+    cliente_nombre: nombre,
+    cliente_telefono: telefonoLimpio,
+    barbero_id: params.barbero_id,
+    barbero_nombre: params.barbero_nombre,
+    servicio_id: params.servicio_id,
+    servicio_nombre: params.servicio_nombre,
+    precio: Math.max(0, Math.round(params.precio || 0)),
+    duracion_minutos: duracion,
+    fecha: params.fecha,
+    hora_inicio: params.hora_inicio,
+    hora_fin,
+    estado: params.estado_inicial === 'completada' ? 'completada' : 'confirmada',
+    token_gestion: token,
+    // La registra el administrador; no hubo casilla de consentimiento en la web.
+    consentimiento_datos: false,
+    creado_en: ahoraIso,
+    origen: 'manual',
+  };
+  const notas = (params.notas || '').trim();
+  if (notas) nuevaCita.notas = notas;
+
+  await runTransaction(db, async (transaction) => {
+    // Todas las lecturas primero (requisito de las transacciones de Firestore)
+    const agendaSnap = await transaction.get(agendaRef);
+    const indiceSnap = indiceRef ? await transaction.get(indiceRef) : null;
+
+    const ocupacionesExistentes: OcupacionSlot[] = agendaSnap.exists()
+      ? (agendaSnap.data().ocupaciones as OcupacionSlot[]) || []
+      : [];
+
+    const choque = ocupacionesExistentes.find((occ) => {
+      const occStart = timeToMinutes(occ.inicio);
+      const occEnd = timeToMinutes(occ.fin);
+      return startMinutes < occEnd && endMinutes > occStart;
+    });
+
+    if (choque) {
+      throw new Error(
+        `Ese horario se cruza con ${choque.tipo === 'bloqueo' ? 'un bloqueo' : 'otra cita'} de ${choque.inicio} a ${choque.fin}. Elige otra hora o ajusta la duración.`
+      );
+    }
+
+    const nuevaOcupacion: OcupacionSlot = {
+      id: token,
+      inicio: params.hora_inicio,
+      fin: hora_fin,
+      tipo: 'cita',
+    };
+
+    transaction.set(
+      agendaRef,
+      {
+        barbero_id: params.barbero_id,
+        fecha: params.fecha,
+        ocupaciones: [...ocupacionesExistentes, nuevaOcupacion],
+        cita_agregada_id: token,
+        actualizado_en: ahoraIso,
+      },
+      { merge: true }
+    );
+
+    transaction.set(citaRef, nuevaCita);
+
+    // El índice por celular solo existe si el cliente dejó un número
+    if (indiceRef && indiceSnap) {
+      const tokensExistentes: string[] = indiceSnap.exists()
+        ? (indiceSnap.data().tokens as string[]) || []
+        : [];
+      transaction.set(
+        indiceRef,
+        {
+          telefono: telefonoLimpio,
+          tokens: tokensExistentes.includes(token) ? tokensExistentes : [...tokensExistentes, token],
+          actualizado_en: ahoraIso,
+        },
+        { merge: true }
+      );
+    }
+  });
+
+  return { token, cita: nuevaCita };
+}
+
 // Verificar política de cancelación (hasta 3 horas antes)
 export function checkCancellationEligibility(fecha: string, hora_inicio: string): {
   puedeCancelar: boolean;

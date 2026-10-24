@@ -19,7 +19,8 @@ import {
   CalendarDays,
   Scissors,
   ShieldCheck,
-  ShieldAlert
+  ShieldAlert,
+  X
 } from 'lucide-react';
 import {
   signInWithPopup,
@@ -40,7 +41,7 @@ import {
   orderBy,
   setDoc
 } from 'firebase/firestore';
-import { auth, db, BARBEROS_BASE } from '../lib/firebase';
+import { auth, db, BARBEROS_BASE, SERVICIOS_BASE } from '../lib/firebase';
 import { checkAdminAuthorization } from '../lib/adminAuth';
 import {
   getBogotaNow,
@@ -48,6 +49,11 @@ import {
   formatCOP,
   cleanPhone,
   BUSINESS_PHONE_INTL,
+  OPENING_MINUTES,
+  CLOSING_MINUTES,
+  timeToMinutes,
+  minutesToTime,
+  createManualBookingTransaction,
   OcupacionSlot
 } from '../lib/bookingLogic';
 import { Cita, Bloqueo, EstadoCita } from '../types';
@@ -55,6 +61,18 @@ import { Cita, Bloqueo, EstadoCita } from '../types';
 interface AdminPanelProps {
   onClose: () => void;
 }
+
+// Duraciones rápidas para citas manuales (el barbero también puede escribir cualquier valor en minutos)
+const DURACIONES_RAPIDAS = [15, 20, 30, 45, 60, 90];
+
+// "14:30" -> "2:30 p. m." (más fácil de leer para el barbero y los clientes)
+const aHora12 = (hhmm: string): string => {
+  const [h, m] = hhmm.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return hhmm;
+  const sufijo = h >= 12 ? 'p. m.' : 'a. m.';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${sufijo}`;
+};
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -89,6 +107,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const [creandoBloqueo, setCreandoBloqueo] = useState(false);
   const [liberandoBloqueoId, setLiberandoBloqueoId] = useState<string | null>(null);
   const [bloqueoFeedback, setBloqueoFeedback] = useState<{ tipo: 'exito' | 'error'; texto: string } | null>(null);
+
+  // Cita manual: el barbero agenda clientes que no reservaron por la página
+  const [manualAbierto, setManualAbierto] = useState(false);
+  const [manualBarbero, setManualBarbero] = useState('barbero_sebas');
+  const [manualFecha, setManualFecha] = useState(formatDateIso(getBogotaNow()));
+  const [manualHora, setManualHora] = useState('10:00');
+  const [manualDuracion, setManualDuracion] = useState('30'); // texto, para poder escribir libremente
+  const [manualServicioId, setManualServicioId] = useState('srv_corte');
+  const [manualServicioOtro, setManualServicioOtro] = useState('');
+  const [manualPrecio, setManualPrecio] = useState('25000');
+  const [manualNombre, setManualNombre] = useState('');
+  const [manualTelefono, setManualTelefono] = useState('');
+  const [manualNotas, setManualNotas] = useState('');
+  const [manualYaAtendida, setManualYaAtendida] = useState(false);
+  const [guardandoManual, setGuardandoManual] = useState(false);
+  const [manualError, setManualError] = useState('');
+  const [ocupacionesDia, setOcupacionesDia] = useState<OcupacionSlot[]>([]);
+  const [cargandoOcupaciones, setCargandoOcupaciones] = useState(false);
+  const [agendaFeedback, setAgendaFeedback] = useState<{ tipo: 'exito' | 'error'; texto: string } | null>(null);
 
   // Escuchar estado de autenticación y verificar en Firestore si existe en la colección 'admins' con activo == true
   useEffect(() => {
@@ -150,6 +187,39 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
       fetchAdminData();
     }
   }, [user]);
+
+  // Cita manual: mostrar qué está ocupado ese día para ese barbero (citas y bloqueos)
+  useEffect(() => {
+    if (!manualAbierto || !user || !manualFecha) return;
+    let cancelado = false;
+    setCargandoOcupaciones(true);
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, 'agenda_dia', `${manualBarbero}_${manualFecha}`));
+        if (cancelado) return;
+        const ocs = snap.exists() ? ((snap.data().ocupaciones as OcupacionSlot[]) || []) : [];
+        setOcupacionesDia([...ocs].sort((a, b) => timeToMinutes(a.inicio) - timeToMinutes(b.inicio)));
+      } catch (err) {
+        console.warn('No se pudo leer la agenda del día:', err);
+        if (!cancelado) setOcupacionesDia([]);
+      } finally {
+        if (!cancelado) setCargandoOcupaciones(false);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [manualAbierto, manualBarbero, manualFecha, user]);
+
+  // Cita manual: cerrar con la tecla Esc
+  useEffect(() => {
+    if (!manualAbierto) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !guardandoManual) setManualAbierto(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [manualAbierto, guardandoManual]);
 
   // Iniciar sesión con Google
   const handleGoogleLogin = async () => {
@@ -369,6 +439,112 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
   const lunesIso = formatDateIso(primerDiaSemana);
   const sabadoIso = formatDateIso(ultimoDiaSemana);
 
+  // ---- Citas manuales ----
+  const abrirCitaManual = () => {
+    const fechaBase = filtroFecha === 'custom' && fechaEspecifica ? fechaEspecifica : hoyIso;
+    // Hora sugerida: el próximo medio punto si es hoy; la apertura si es otro día
+    const minutosAhora = bogotaNow.getHours() * 60 + bogotaNow.getMinutes();
+    const sugerida =
+      fechaBase === hoyIso
+        ? Math.min(Math.max(Math.ceil(minutosAhora / 30) * 30, OPENING_MINUTES), 23 * 60 + 30)
+        : OPENING_MINUTES;
+
+    setManualError('');
+    setAgendaFeedback(null);
+    setManualBarbero(filtroBarbero !== 'todos' ? filtroBarbero : 'barbero_sebas');
+    setManualFecha(fechaBase);
+    setManualHora(minutesToTime(sugerida));
+    setManualAbierto(true);
+  };
+
+  const handleManualServicio = (servicioId: string) => {
+    setManualServicioId(servicioId);
+    const s = SERVICIOS_BASE.find((x) => x.id === servicioId);
+    if (s) {
+      // Precarga la duración y el precio del servicio; el barbero puede cambiarlos
+      setManualDuracion(String(s.duracion_minutos));
+      setManualPrecio(String(s.precio));
+    }
+  };
+
+  const handleCrearCitaManual = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setManualError('');
+
+    const esOtro = manualServicioId === 'otro';
+    const servicioBase = SERVICIOS_BASE.find((s) => s.id === manualServicioId);
+    const servicioNombre = esOtro ? manualServicioOtro.trim() : servicioBase?.nombre || '';
+    if (!servicioNombre) {
+      setManualError('Escribe el nombre del servicio.');
+      return;
+    }
+    const barbero = BARBEROS_BASE.find((b) => b.id === manualBarbero);
+    if (!barbero) {
+      setManualError('Selecciona el barbero.');
+      return;
+    }
+
+    setGuardandoManual(true);
+    try {
+      const { cita } = await createManualBookingTransaction({
+        cliente_nombre: manualNombre,
+        cliente_telefono: manualTelefono,
+        barbero_id: barbero.id,
+        barbero_nombre: barbero.nombre,
+        servicio_id: esOtro ? 'srv_personalizado' : manualServicioId,
+        servicio_nombre: servicioNombre,
+        precio: parseInt(manualPrecio.replace(/\D/g, ''), 10) || 0,
+        duracion_minutos: parseInt(manualDuracion, 10),
+        fecha: manualFecha,
+        hora_inicio: manualHora,
+        estado_inicial: manualYaAtendida ? 'completada' : 'confirmada',
+        notas: manualNotas,
+      });
+
+      setCitas((prev) => [cita, ...prev]);
+
+      // Mostrar de inmediato el día de la cita nueva para que el barbero la vea en su agenda
+      setFiltroBarbero('todos');
+      setFiltroEstado('todas');
+      setBusquedaTexto('');
+      setFiltroFecha('custom');
+      setFechaEspecifica(cita.fecha);
+
+      setAgendaFeedback({
+        tipo: 'exito',
+        texto: `Cita agendada: ${cita.cliente_nombre} • ${cita.fecha} de ${aHora12(cita.hora_inicio)} a ${aHora12(cita.hora_fin)} con ${cita.barbero_nombre}.`,
+      });
+
+      setManualNombre('');
+      setManualTelefono('');
+      setManualNotas('');
+      setManualYaAtendida(false);
+      setManualAbierto(false);
+    } catch (err: any) {
+      console.error('Error creando cita manual:', err);
+      if (err?.code === 'permission-denied') {
+        setManualError(
+          'Firebase no permitió guardar la cita (permission-denied). Falta publicar las reglas de Firestore actualizadas (archivo firestore.rules) en Firebase Console → Firestore Database → Reglas.'
+        );
+      } else {
+        setManualError(err?.message || 'No se pudo guardar la cita. Intenta de nuevo.');
+      }
+    } finally {
+      setGuardandoManual(false);
+    }
+  };
+
+  // Datos derivados del formulario manual (aviso de cruce en vivo, hora de fin)
+  const manualDuracionNum = parseInt(manualDuracion, 10);
+  const manualInicioMin = manualHora ? timeToMinutes(manualHora) : NaN;
+  const manualFinMin = manualInicioMin + manualDuracionNum;
+  const manualDatosValidos = Number.isFinite(manualFinMin) && manualDuracionNum > 0;
+  const manualChoque = manualDatosValidos
+    ? ocupacionesDia.find((o) => manualInicioMin < timeToMinutes(o.fin) && manualFinMin > timeToMinutes(o.inicio))
+    : undefined;
+  const manualFueraDeHorario =
+    manualDatosValidos && (manualInicioMin < OPENING_MINUTES || manualFinMin > CLOSING_MINUTES);
+
   const citasFiltradas = citas.filter((c) => {
     // Filtro por barbero
     if (filtroBarbero !== 'todos' && c.barbero_id !== filtroBarbero) {
@@ -396,13 +572,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
       const q = busquedaTexto.toLowerCase();
       const coincide =
         c.cliente_nombre.toLowerCase().includes(q) ||
-        c.cliente_telefono.includes(q) ||
+        (c.cliente_telefono || '').includes(q) ||
         c.servicio_nombre.toLowerCase().includes(q) ||
         c.token_gestion.toLowerCase().includes(q);
       if (!coincide) return false;
     }
 
     return true;
+  }).sort((a, b) => {
+    // Agenda de un solo día: de la primera a la última cita. Varios días: el más reciente primero.
+    if (filtroFecha === 'hoy' || filtroFecha === 'custom') {
+      return timeToMinutes(a.hora_inicio) - timeToMinutes(b.hora_inicio);
+    }
+    if (a.fecha !== b.fecha) return a.fecha < b.fecha ? 1 : -1;
+    return timeToMinutes(a.hora_inicio) - timeToMinutes(b.hora_inicio);
   });
 
   // Métricas para pestaña Reportes
@@ -647,6 +830,45 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
         {/* PESTAÑA 1: AGENDA DE CITAS (Función más importante) */}
         {activeTab === 'agenda' && (
           <div className="max-w-7xl mx-auto space-y-6">
+            {/* Encabezado + botón de cita manual */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-black text-white uppercase">Agenda</h3>
+                <p className="text-xs text-neutral-400">
+                  Registra también a los clientes que no reservan por la página, con la duración que necesites.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={abrirCitaManual}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-xs uppercase tracking-wider shadow-[0_0_20px_rgba(245,158,11,0.25)] transition-all active:scale-[0.98]"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Nueva cita manual</span>
+              </button>
+            </div>
+
+            {agendaFeedback && (
+              <div
+                role="status"
+                className={`p-4 rounded-xl border flex items-center justify-between text-xs font-bold ${
+                  agendaFeedback.tipo === 'exito'
+                    ? 'bg-emerald-950/50 border-emerald-800 text-emerald-300'
+                    : 'bg-rose-950/50 border-rose-800 text-rose-300'
+                }`}
+              >
+                <span>{agendaFeedback.texto}</span>
+                <button
+                  type="button"
+                  onClick={() => setAgendaFeedback(null)}
+                  aria-label="Cerrar aviso"
+                  className="text-neutral-400 hover:text-white text-xs ml-4"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             {/* Barra de Filtros */}
             <div className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-3">
               <div className="flex flex-wrap items-center gap-3">
@@ -755,12 +977,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                         {/* Header de la tarjeta */}
                         <div className="flex items-start justify-between mb-3">
                           <div>
-                            <span className="text-[10px] font-mono text-amber-400 uppercase tracking-wider block">
+                            <span className="text-[10px] font-mono text-amber-400 uppercase tracking-wider flex items-center gap-2">
                               {cita.fecha}
+                              {cita.origen === 'manual' && (
+                                <span className="px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-neutral-300 font-sans font-bold tracking-wide">
+                                  Manual
+                                </span>
+                              )}
                             </span>
                             <h4 className="text-base font-black text-white uppercase">
                               {cita.hora_inicio} – {cita.hora_fin}
                             </h4>
+                            <span className="text-[11px] text-neutral-400">
+                              {aHora12(cita.hora_inicio)} a {aHora12(cita.hora_fin)} • {cita.duracion_minutos} min
+                            </span>
                           </div>
 
                           {/* Badge de estado */}
@@ -811,19 +1041,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
                           </p>
                           <div className="flex items-center justify-between">
                             <span className="text-neutral-400">Teléfono:</span>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-neutral-300">{cita.cliente_telefono}</span>
-                              <a
-                                href={`https://wa.me/57${cleanPhone(cita.cliente_telefono)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="Abrir chat en WhatsApp"
-                                className="p-1 text-emerald-400 hover:bg-emerald-950 rounded"
-                              >
-                                <Phone className="h-3.5 w-3.5" />
-                              </a>
-                            </div>
+                            {cita.cliente_telefono ? (
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-neutral-300">{cita.cliente_telefono}</span>
+                                <a
+                                  href={`https://wa.me/57${cleanPhone(cita.cliente_telefono)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Abrir chat en WhatsApp"
+                                  className="p-1 text-emerald-400 hover:bg-emerald-950 rounded"
+                                >
+                                  <Phone className="h-3.5 w-3.5" />
+                                </a>
+                              </div>
+                            ) : (
+                              <span className="text-neutral-500 italic">Sin celular</span>
+                            )}
                           </div>
+                          {cita.notas && (
+                            <p className="text-neutral-400 pt-1">
+                              Nota: <span className="text-neutral-200">{cita.notas}</span>
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -1127,6 +1366,324 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose }) => {
           </div>
         )}
       </main>
+
+      {/* MODAL: NUEVA CITA MANUAL */}
+      {manualAbierto && (
+        <div
+          className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm sm:p-4"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !guardandoManual) setManualAbierto(false);
+          }}
+        >
+          <form
+            onSubmit={handleCrearCitaManual}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cita-manual-titulo"
+            className="w-full max-w-2xl max-h-[94vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-neutral-950 border border-neutral-800 shadow-2xl"
+          >
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 px-5 py-4 bg-neutral-950/95 backdrop-blur border-b border-neutral-800">
+              <div>
+                <h3 id="cita-manual-titulo" className="text-base font-black text-white uppercase tracking-tight">
+                  Nueva cita manual
+                </h3>
+                <p className="text-[11px] text-neutral-400 mt-0.5">
+                  Queda ocupada en la agenda y la página deja de ofrecer ese horario.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setManualAbierto(false)}
+                disabled={guardandoManual}
+                aria-label="Cerrar formulario"
+                className="p-2 rounded-lg bg-neutral-900 text-neutral-400 hover:text-white disabled:opacity-50"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5 text-xs">
+              {/* Quién, cuándo */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label htmlFor="cm-barbero" className="block text-neutral-400 font-bold mb-1 uppercase">Barbero</label>
+                  <select
+                    id="cm-barbero"
+                    value={manualBarbero}
+                    onChange={(e) => setManualBarbero(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-bold"
+                  >
+                    {BARBEROS_BASE.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="cm-fecha" className="block text-neutral-400 font-bold mb-1 uppercase">Fecha</label>
+                  <input
+                    id="cm-fecha"
+                    type="date"
+                    required
+                    value={manualFecha}
+                    onChange={(e) => setManualFecha(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-bold"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="cm-hora" className="block text-neutral-400 font-bold mb-1 uppercase">Hora de inicio</label>
+                  <input
+                    id="cm-hora"
+                    type="time"
+                    step={300}
+                    required
+                    value={manualHora}
+                    onChange={(e) => setManualHora(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Duración libre */}
+              <div>
+                <label htmlFor="cm-duracion" className="block text-neutral-400 font-bold mb-1 uppercase">
+                  Duración (minutos)
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    id="cm-duracion"
+                    type="number"
+                    inputMode="numeric"
+                    min={5}
+                    max={600}
+                    step={5}
+                    required
+                    value={manualDuracion}
+                    onChange={(e) => setManualDuracion(e.target.value)}
+                    className="w-28 p-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-bold"
+                  />
+                  {DURACIONES_RAPIDAS.map((min) => (
+                    <button
+                      key={min}
+                      type="button"
+                      onClick={() => setManualDuracion(String(min))}
+                      className={`px-3 py-2 rounded-lg border font-bold transition-colors ${
+                        manualDuracionNum === min
+                          ? 'bg-amber-500 text-neutral-950 border-amber-400'
+                          : 'bg-neutral-900 text-neutral-300 border-neutral-700 hover:border-amber-500/60'
+                      }`}
+                    >
+                      {min} min
+                    </button>
+                  ))}
+                </div>
+                {manualDatosValidos && (
+                  <p className="mt-2 text-neutral-300">
+                    Va de <strong className="text-amber-400">{aHora12(manualHora)}</strong> a{' '}
+                    <strong className="text-amber-400">{aHora12(minutesToTime(Math.min(manualFinMin, 24 * 60)))}</strong>
+                  </p>
+                )}
+              </div>
+
+              {/* Ocupación del día */}
+              <div className="rounded-xl bg-neutral-900/70 border border-neutral-800 p-3">
+                <p className="text-neutral-400 font-bold uppercase mb-2 flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-amber-400" />
+                  Ya ocupado ese día
+                  {cargandoOcupaciones && <Loader2 className="h-3 w-3 animate-spin" />}
+                </p>
+                {ocupacionesDia.length === 0 && !cargandoOcupaciones ? (
+                  <p className="text-emerald-400">Todo el día está libre para este barbero.</p>
+                ) : (
+                  <ul className="space-y-1">
+                    {ocupacionesDia.map((o) => {
+                      const citaOcupa = o.tipo === 'cita' ? citas.find((c) => c.token_gestion === o.id) : undefined;
+                      const bloqueoOcupa = o.tipo === 'bloqueo' ? bloqueos.find((b) => b.id === o.id) : undefined;
+                      const detalle =
+                        o.tipo === 'cita'
+                          ? citaOcupa
+                            ? `${citaOcupa.cliente_nombre} • ${citaOcupa.servicio_nombre}`
+                            : 'Cita'
+                          : `Bloqueo${bloqueoOcupa?.motivo ? `: ${bloqueoOcupa.motivo}` : ''}`;
+                      return (
+                        <li key={o.id} className="flex items-center justify-between gap-3 text-neutral-300">
+                          <span className="font-mono text-white">
+                            {aHora12(o.inicio)} – {aHora12(o.fin)}
+                          </span>
+                          <span className="truncate text-right text-neutral-400">{detalle}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+
+              {manualChoque && (
+                <div role="alert" className="p-3 rounded-xl bg-rose-950/50 border border-rose-800 text-rose-300 font-bold flex gap-2 items-start">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    Este horario se cruza con {manualChoque.tipo === 'bloqueo' ? 'un bloqueo' : 'otra cita'} de{' '}
+                    {aHora12(manualChoque.inicio)} a {aHora12(manualChoque.fin)} — cambia la hora o la duración.
+                  </span>
+                </div>
+              )}
+
+              {!manualChoque && manualFueraDeHorario && (
+                <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-800/70 text-amber-300 flex gap-2 items-start">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    Esta cita queda fuera del horario habitual (10:00 a. m. a 8:00 p. m.). Se puede guardar igual.
+                  </span>
+                </div>
+              )}
+
+              {/* Servicio */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className={manualServicioId === 'otro' ? '' : 'sm:col-span-2'}>
+                  <label htmlFor="cm-servicio" className="block text-neutral-400 font-bold mb-1 uppercase">Servicio</label>
+                  <select
+                    id="cm-servicio"
+                    value={manualServicioId}
+                    onChange={(e) => handleManualServicio(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-bold"
+                  >
+                    {SERVICIOS_BASE.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.nombre} — {formatCOP(s.precio)}
+                      </option>
+                    ))}
+                    <option value="otro">Otro (escribir)</option>
+                  </select>
+                </div>
+                {manualServicioId === 'otro' && (
+                  <div>
+                    <label htmlFor="cm-servicio-otro" className="block text-neutral-400 font-bold mb-1 uppercase">
+                      Nombre del servicio
+                    </label>
+                    <input
+                      id="cm-servicio-otro"
+                      type="text"
+                      required
+                      maxLength={60}
+                      placeholder="Ej. Corte niño"
+                      value={manualServicioOtro}
+                      onChange={(e) => setManualServicioOtro(e.target.value)}
+                      className="w-full p-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white"
+                    />
+                  </div>
+                )}
+                <div>
+                  <label htmlFor="cm-precio" className="block text-neutral-400 font-bold mb-1 uppercase">Precio (COP)</label>
+                  <input
+                    id="cm-precio"
+                    type="text"
+                    inputMode="numeric"
+                    value={manualPrecio}
+                    onChange={(e) => setManualPrecio(e.target.value.replace(/\D/g, ''))}
+                    className="w-full p-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Cliente */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="cm-nombre" className="block text-neutral-400 font-bold mb-1 uppercase">Nombre del cliente</label>
+                  <input
+                    id="cm-nombre"
+                    type="text"
+                    required
+                    minLength={2}
+                    maxLength={80}
+                    placeholder="Ej. Juan Pérez"
+                    value={manualNombre}
+                    onChange={(e) => setManualNombre(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="cm-telefono" className="block text-neutral-400 font-bold mb-1 uppercase">
+                    Celular <span className="text-neutral-500 normal-case font-normal">(opcional)</span>
+                  </label>
+                  <input
+                    id="cm-telefono"
+                    type="tel"
+                    inputMode="tel"
+                    maxLength={14}
+                    placeholder="3001234567"
+                    value={manualTelefono}
+                    onChange={(e) => setManualTelefono(e.target.value)}
+                    className="w-full p-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="cm-notas" className="block text-neutral-400 font-bold mb-1 uppercase">
+                  Nota <span className="text-neutral-500 normal-case font-normal">(opcional, solo la ves tú)</span>
+                </label>
+                <input
+                  id="cm-notas"
+                  type="text"
+                  maxLength={200}
+                  placeholder="Ej. Pidió degradado bajo, paga en efectivo"
+                  value={manualNotas}
+                  onChange={(e) => setManualNotas(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-neutral-900 border border-neutral-700 text-white"
+                />
+              </div>
+
+              <label className="flex items-start gap-3 p-3 rounded-xl bg-neutral-900/70 border border-neutral-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={manualYaAtendida}
+                  onChange={(e) => setManualYaAtendida(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-amber-500"
+                />
+                <span className="text-neutral-300">
+                  <strong className="text-white">Ya fue atendida</strong> — guardarla directamente como completada (cuenta en los ingresos de Reportes).
+                </span>
+              </label>
+
+              {manualError && (
+                <div role="alert" className="p-3 rounded-xl bg-rose-950/50 border border-rose-800 text-rose-300 font-bold flex gap-2 items-start">
+                  <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>{manualError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="sticky bottom-0 flex flex-col-reverse sm:flex-row gap-3 px-5 py-4 bg-neutral-950/95 backdrop-blur border-t border-neutral-800">
+              <button
+                type="button"
+                onClick={() => setManualAbierto(false)}
+                disabled={guardandoManual}
+                className="sm:w-40 py-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 font-bold text-xs uppercase tracking-wider disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={guardandoManual || !!manualChoque}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-black text-xs uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {guardandoManual ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Guardando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4" />
+                    <span>Agendar cita</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

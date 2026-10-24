@@ -11,21 +11,15 @@ interface HeroProps {
 export const Hero: React.FC<HeroProps> = ({ onOpenBooking, onExploreServices }) => {
   return (
     <section id="inicio" className="relative min-h-[92vh] flex items-center justify-center pt-24 pb-16 overflow-hidden bg-neutral-950">
-      {/* Background Video / Image overlay */}
+      {/* Imagen de fondo: foto real de la barbería (archivo en /public/hero-barberia.jpg).
+          Ruta relativa a propósito: el sitio vive en la subcarpeta /NewConcept/ de GitHub Pages. */}
       <div className="absolute inset-0 z-0">
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          poster="https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=1920&q=80"
-          className="h-full w-full object-cover opacity-25 filter grayscale contrast-125"
-        >
-          <source
-            src="https://assets.mixkit.co/videos/preview/mixkit-barber-cutting-hair-with-scissors-and-comb-41712-large.mp4"
-            type="video/mp4"
-          />
-        </video>
+        <img
+          src="hero-barberia.jpg"
+          alt="Interior de la Barbería New Concept 24k: silla de barbero, espejo y estación de trabajo"
+          fetchPriority="high"
+          className="h-full w-full object-cover object-[center_88%] opacity-50 contrast-110"
+        />
         {/* Dark subtle gradient vignettes */}
         <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/80 to-neutral-950/60" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-500/10 via-transparent to-transparent pointer-events-none" />

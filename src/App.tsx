@@ -132,7 +132,9 @@ export default function App() {
               onSelectBarber={(barbId) => handleOpenBooking(barbId, undefined)}
             />
 
-            <GallerySection />
+            <GallerySection
+              onSelectService={(srvId) => handleOpenBooking(undefined, srvId)}
+            />
 
             <AboutSection />
 

@@ -158,19 +158,24 @@ service cloud.firestore {
     // El ID del documento es el propio token_gestion (de mínimo 16 caracteres alfanuméricos)
     match /citas/{token} {
 
-      // 1. Creación: El cliente puede crear su cita directamente con token_gestion igual al ID del documento
-      allow create: if request.resource.data.keys().hasAll([
-        'cliente_nombre', 'cliente_telefono', 'barbero_id', 'servicio_id',
-        'fecha', 'hora_inicio', 'hora_fin', 'estado', 'token_gestion', 'consentimiento_datos'
-      ])
-      && request.resource.data.cliente_nombre is string
-      && request.resource.data.cliente_nombre.size() >= 2
-      && request.resource.data.cliente_telefono is string
-      && request.resource.data.cliente_telefono.matches('^3[0-9]{9}$')
-      && request.resource.data.token_gestion == token
-      && request.resource.data.token_gestion.size() >= 16
-      && request.resource.data.estado == 'confirmada'
-      && request.resource.data.consentimiento_datos == true;
+      // 1. Creación:
+      //    a) El administrador autenticado puede registrar citas manuales desde el panel
+      //       (sin celular obligatorio, duración libre, estado inicial confirmada o completada).
+      //    b) El cliente puede crear su cita directamente con token_gestion igual al ID del documento
+      allow create: if isAdmin() || (
+        request.resource.data.keys().hasAll([
+          'cliente_nombre', 'cliente_telefono', 'barbero_id', 'servicio_id',
+          'fecha', 'hora_inicio', 'hora_fin', 'estado', 'token_gestion', 'consentimiento_datos'
+        ])
+        && request.resource.data.cliente_nombre is string
+        && request.resource.data.cliente_nombre.size() >= 2
+        && request.resource.data.cliente_telefono is string
+        && request.resource.data.cliente_telefono.matches('^3[0-9]{9}$')
+        && request.resource.data.token_gestion == token
+        && request.resource.data.token_gestion.size() >= 16
+        && request.resource.data.estado == 'confirmada'
+        && request.resource.data.consentimiento_datos == true
+      );
 
       // 2. Lectura directa (get):
       // El admin puede leer cualquier cita. El cliente solo puede leer el documento exacto si conoce el token (ID del documento)

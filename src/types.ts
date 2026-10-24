@@ -42,6 +42,11 @@ export interface Cita {
   creado_en: string;
   cancelado_en?: string | null;
   motivo_cancelacion?: string | null;
+  // 'manual' = la registró el administrador desde el panel (cliente de paso, WhatsApp, llamada, etc.).
+  // Las citas antiguas no traen este campo y se consideran 'web'.
+  origen?: 'web' | 'manual';
+  // Nota interna opcional (solo visible para el administrador)
+  notas?: string;
 }
 
 export interface Bloqueo {
