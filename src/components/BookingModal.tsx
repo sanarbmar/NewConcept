@@ -34,6 +34,11 @@ import { Barbero, Servicio, Cita } from '../types';
 import { DataPrivacyModal } from './DataPrivacyModal';
 import { BarberAvatar } from './BarberAvatar';
 
+// Enlace personal de gestión de la cita. Usa la ruta actual (/NewConcept/ en GitHub Pages)
+// para que el enlace funcione fuera del sitio raíz.
+const buildManagementUrl = (token: string) =>
+  `${window.location.origin}${window.location.pathname}#mis-citas/${token}`;
+
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -297,7 +302,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   };
 
   const handleCopyLink = (token: string) => {
-    const fullUrl = `${window.location.origin}/#mis-citas/${token}`;
+    const fullUrl = buildManagementUrl(token);
     navigator.clipboard.writeText(fullUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
@@ -817,7 +822,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <div className="flex items-center gap-2">
                   <input
                     readOnly
-                    value={`${window.location.origin}/#mis-citas/${confirmedCita.token_gestion}`}
+                    value={buildManagementUrl(confirmedCita.token_gestion)}
                     className="w-full px-3 py-2 rounded-lg bg-neutral-950 border border-neutral-800 text-xs font-mono text-neutral-300 outline-none"
                   />
                   <button

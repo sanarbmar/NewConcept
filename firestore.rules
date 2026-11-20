@@ -109,12 +109,12 @@ service cloud.firestore {
               'fin': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_cancelada_id)).data.hora_fin,
               'tipo': 'cita'
             }]) &&
-            (request.resource.data.ocupaciones + [{
+            (request.resource.data.ocupaciones.concat([{
               'id': request.resource.data.cita_cancelada_id,
               'inicio': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_cancelada_id)).data.hora_inicio,
               'fin': getAfter(/databases/$(database)/documents/citas/$(request.resource.data.cita_cancelada_id)).data.hora_fin,
               'tipo': 'cita'
-            }]).hasAll(resource.data.ocupaciones)
+            }])).hasAll(resource.data.ocupaciones)
           )
         )
       );
